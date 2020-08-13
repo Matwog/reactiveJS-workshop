@@ -1,4 +1,4 @@
-import {EMPTY, empty, Observable, Subscription, timer} from 'rxjs'
+import {EMPTY, Observable, Subscription, timer} from 'rxjs'
 import {catchError, concatMap} from 'rxjs/operators'
 
 // var observable = Observable.create((observer: any) => {
@@ -94,20 +94,25 @@ let resultObservable: Observable<resultResponse> = new Observable((observer: any
     }
 })
 
-let pollSubscription = Subscription.EMPTY 
+let pollSubscription = Subscription.EMPTY
+
+function pollImportStatusObservable() {
+    // This function returns a stream (observable) that polls the status
+    // Note: it can easily be tested! :)
+    return timer(0, 1000).pipe(
+        concatMap(() => statusObservable.pipe(
+            catchError((err) => resultObservable),
+            catchError((err) => EMPTY)
+        )));
+}
 
 function subscribePoll() {
     pollSubscription.unsubscribe()
-    
+
     // Update UI accordingly
     // show progress bar
-    
-    pollSubscription = timer(0, 1000)
-        .pipe(
-            concatMap(() => statusObservable.pipe(
-                catchError((err) => resultObservable),
-                catchError((err) => EMPTY)
-            )))
+
+    pollSubscription = pollImportStatusObservable()
         .subscribe(
             (item) => {
                 // Update the UI 
