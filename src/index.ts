@@ -1,6 +1,5 @@
-import { Observable, timer, from, of } from 'rxjs'
-import { take, concatMap, switchMap, catchError, map, onErrorResumeNext } from 'rxjs/operators'
-import { fromFetch } from 'rxjs/fetch'
+import {empty, Observable, timer} from 'rxjs'
+import {catchError, concatMap} from 'rxjs/operators'
 
 // var observable = Observable.create((observer: any) => {
 //     console.log(observer)
@@ -32,8 +31,6 @@ let newObservable = Observable.create((observer: any) => {
 
 const img = document.createElement('img')
 document.getElementById("root")!.appendChild(img)
-
-
 
 
 // let subscription = timer(0, 1000)
@@ -79,9 +76,15 @@ class combinedResponse {
 }
 
 
+function getRandomNumber() {
+    return Math.round(Math.random() * 10);
+}
+
+let statusReturnEmpty = false
 let statusObservable: Observable<statusResponse> = Observable.create((observer: any) => {
-    let randomNumber = Math.round(Math.random() * 10)
-    if (randomNumber % 7 === 0) {
+    if (getRandomNumber() % 7 === 0 || statusReturnEmpty) {
+        statusReturnEmpty = true
+        console.log(">>> status enpoint: emitting an error")
         observer.error('404 not found')
     } else {
         observer.next(new statusResponse(5, 15))
@@ -90,43 +93,49 @@ let statusObservable: Observable<statusResponse> = Observable.create((observer: 
 
 })
 
+let resultReturnSomething = false
 let resultObservable: Observable<resultResponse> = Observable.create((observer: any) => {
-    observer.next(new resultResponse('success'))
-    observer.complete()
+    if (getRandomNumber() % 7 === 0 || resultReturnSomething) {
+        resultReturnSomething = true
+        observer.next(new resultResponse('success'))
+        observer.complete()
+    } else {
+        console.log(">>> result endpoint: emitting an error")
+        observer.error('404 not found (Result)')
+    }
 })
 
-function getResultObservable(status: statusResponse) {
-    return resultObservable
-        .pipe(map((result) => new combinedResponse(status, result)))
-}
-
-
-timer(0, 1000)
+let pollSubscribtion = timer(0, 1000)
     .pipe(
-        take(10),
-        concatMap(() => statusObservable),
-        onErrorResumeNext(resultObservable)
-        // concatMap((data) => getResultObservable(data))
-    )
+        concatMap(() => statusObservable.pipe(
+            catchError((err) => resultObservable),
+            catchError((err) => empty())
+        )))
     .subscribe(
-        (item) => console.log(item),
+        (item) => {
+            // Update the UI 
+            if (item instanceof statusResponse) {
+                console.log(`${item.progressCurrent} of ${item.progressTotal}`)
+            } else if (item instanceof resultResponse) {
+                console.log(`Import completed! ${item.status}`)
+                pollSubscribtion.unsubscribe()
+            }
+        },
         (error) => console.log(error),
         () => console.log('completed')
     )
 
 
-
-
-    // const apiObservableWrapper = () =>
-    // fromFetch('https://dog.ceo/api/breeds/image/random')
-    //     .pipe(switchMap(response => {
-    //         if (response.ok) {
-    //             return response.json()
-    //         } else {
-    //             return of({ error: true, message: `Error ${response.status}` });
-    //         }
-    //     })
-    //     )
+// const apiObservableWrapper = () =>
+// fromFetch('https://dog.ceo/api/breeds/image/random')
+//     .pipe(switchMap(response => {
+//         if (response.ok) {
+//             return response.json()
+//         } else {
+//             return of({ error: true, message: `Error ${response.status}` });
+//         }
+//     })
+//     )
 
 
 // const data = apiObservableWrapper()
