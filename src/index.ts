@@ -1,5 +1,6 @@
-import { Observable, timer, from } from 'rxjs'
-import { take, concatMap } from 'rxjs/operators'
+import { Observable, timer, from, of } from 'rxjs'
+import { take, concatMap, switchMap, catchError, map } from 'rxjs/operators'
+import { fromFetch } from 'rxjs/fetch'
 
 // var observable = Observable.create((observer: any) => {
 //     console.log(observer)
@@ -35,16 +36,93 @@ document.getElementById("root")!.appendChild(img)
 
 
 
-let subscription = timer(0, 1000)
+// let subscription = timer(0, 1000)
+//     .pipe(take(10))
+//     // .pipe(concatMap((val) => from([`Hello ${val}`, 'Good'])))
+//     .pipe(concatMap((val) => from(fetch('https://dog.ceo/api/breeds/image/random'))))
+//     .subscribe(
+//         (item) => console.log(item),
+//         (error) => console.log(error),
+//         () => console.log('completed')
+//     )
+
+// setTimeout(() => {
+//     subscription.unsubscribe()
+// }, 5000)
+
+class statusResponse {
+    progressCurrent: Number
+    progressTotal: Number
+
+    constructor(progressCurrent: Number, progressTotal: Number) {
+        this.progressCurrent = progressCurrent
+        this.progressTotal = progressTotal
+    }
+}
+
+class resultResponse {
+    status: string
+
+    constructor(status: string) {
+        this.status = status
+    }
+}
+
+class combinedResponse {
+    status: statusResponse
+    result: resultResponse
+
+    constructor(status: statusResponse, result: resultResponse) {
+        this.status = status
+        this.result = result
+    }
+}
+
+
+let statusObservable: Observable<statusResponse> = Observable.create((observer: any) => {
+    observer.next(new statusResponse(5, 15))
+    observer.complete()
+})
+
+let resultObservable: Observable<resultResponse> = Observable.create((observer: any) => {
+    observer.next(new resultResponse('success'))
+    observer.complete()
+})
+
+function cumulativeResponse(status: statusResponse) {
+    return resultObservable
+        .pipe(map((result) => new combinedResponse(status, result)))
+}
+
+timer(0, 1000)
     .pipe(take(10))
-    // .pipe(concatMap((val) => from([`Hello ${val}`, 'Good'])))
-    .pipe(concatMap((val) => from(fetch('https://dog.ceo/api/breeds/image/random'))))
+    .pipe(concatMap(() => statusObservable))
+    .pipe(concatMap((data) => cumulativeResponse(data)))
     .subscribe(
         (item) => console.log(item),
         (error) => console.log(error),
         () => console.log('completed')
     )
 
-setTimeout(() => {
-    subscription.unsubscribe()
-}, 5000)
+
+
+
+    // const apiObservableWrapper = () =>
+    // fromFetch('https://dog.ceo/api/breeds/image/random')
+    //     .pipe(switchMap(response => {
+    //         if (response.ok) {
+    //             return response.json()
+    //         } else {
+    //             return of({ error: true, message: `Error ${response.status}` });
+    //         }
+    //     })
+    //     )
+
+
+// const data = apiObservableWrapper()
+
+// data.subscribe({
+//     next: result => console.log(result),
+//     error: error => console.log(error),
+//     complete: () => console.log('done')
+// });
