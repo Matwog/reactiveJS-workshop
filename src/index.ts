@@ -1,5 +1,5 @@
 import { Observable, timer, from, of } from 'rxjs'
-import { take, concatMap, switchMap, catchError, map } from 'rxjs/operators'
+import { take, concatMap, switchMap, catchError, map, onErrorResumeNext } from 'rxjs/operators'
 import { fromFetch } from 'rxjs/fetch'
 
 // var observable = Observable.create((observer: any) => {
@@ -80,8 +80,14 @@ class combinedResponse {
 
 
 let statusObservable: Observable<statusResponse> = Observable.create((observer: any) => {
-    observer.next(new statusResponse(5, 15))
-    observer.complete()
+    let randomNumber = Math.round(Math.random() * 10)
+    if (randomNumber % 7 === 0) {
+        observer.error('404 not found')
+    } else {
+        observer.next(new statusResponse(5, 15))
+        observer.complete()
+    }
+
 })
 
 let resultObservable: Observable<resultResponse> = Observable.create((observer: any) => {
@@ -89,15 +95,19 @@ let resultObservable: Observable<resultResponse> = Observable.create((observer: 
     observer.complete()
 })
 
-function cumulativeResponse(status: statusResponse) {
+function getResultObservable(status: statusResponse) {
     return resultObservable
         .pipe(map((result) => new combinedResponse(status, result)))
 }
 
+
 timer(0, 1000)
-    .pipe(take(10))
-    .pipe(concatMap(() => statusObservable))
-    .pipe(concatMap((data) => cumulativeResponse(data)))
+    .pipe(
+        take(10),
+        concatMap(() => statusObservable),
+        onErrorResumeNext(resultObservable)
+        // concatMap((data) => getResultObservable(data))
+    )
     .subscribe(
         (item) => console.log(item),
         (error) => console.log(error),
