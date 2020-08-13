@@ -1,4 +1,4 @@
-import {empty, Observable, timer} from 'rxjs'
+import {EMPTY, empty, Observable, Subscription, timer} from 'rxjs'
 import {catchError, concatMap} from 'rxjs/operators'
 
 // var observable = Observable.create((observer: any) => {
@@ -65,23 +65,12 @@ class resultResponse {
     }
 }
 
-class combinedResponse {
-    status: statusResponse
-    result: resultResponse
-
-    constructor(status: statusResponse, result: resultResponse) {
-        this.status = status
-        this.result = result
-    }
-}
-
-
 function getRandomNumber() {
     return Math.round(Math.random() * 10);
 }
 
 let statusReturnEmpty = false
-let statusObservable: Observable<statusResponse> = Observable.create((observer: any) => {
+let statusObservable: Observable<statusResponse> = new Observable((observer: any) => {
     if (getRandomNumber() % 7 === 0 || statusReturnEmpty) {
         statusReturnEmpty = true
         console.log(">>> status enpoint: emitting an error")
@@ -94,7 +83,7 @@ let statusObservable: Observable<statusResponse> = Observable.create((observer: 
 })
 
 let resultReturnSomething = false
-let resultObservable: Observable<resultResponse> = Observable.create((observer: any) => {
+let resultObservable: Observable<resultResponse> = new Observable((observer: any) => {
     if (getRandomNumber() % 7 === 0 || resultReturnSomething) {
         resultReturnSomething = true
         observer.next(new resultResponse('success'))
@@ -105,26 +94,50 @@ let resultObservable: Observable<resultResponse> = Observable.create((observer: 
     }
 })
 
-let pollSubscribtion = timer(0, 1000)
-    .pipe(
-        concatMap(() => statusObservable.pipe(
-            catchError((err) => resultObservable),
-            catchError((err) => empty())
-        )))
-    .subscribe(
-        (item) => {
-            // Update the UI 
-            if (item instanceof statusResponse) {
-                console.log(`${item.progressCurrent} of ${item.progressTotal}`)
-            } else if (item instanceof resultResponse) {
-                console.log(`Import completed! ${item.status}`)
-                pollSubscribtion.unsubscribe()
-            }
-        },
-        (error) => console.log(error),
-        () => console.log('completed')
-    )
+let pollSubscription = Subscription.EMPTY 
 
+function subscribePoll() {
+    pollSubscription.unsubscribe()
+    
+    // Update UI accordingly
+    // show progress bar
+    
+    pollSubscription = timer(0, 1000)
+        .pipe(
+            concatMap(() => statusObservable.pipe(
+                catchError((err) => resultObservable),
+                catchError((err) => EMPTY)
+            )))
+        .subscribe(
+            (item) => {
+                // Update the UI 
+                if (item instanceof statusResponse) {
+                    console.log(`${item.progressCurrent} of ${item.progressTotal}`)
+                    // update the progress bar
+                } else if (item instanceof resultResponse) {
+                    console.log(`Import completed! ${item.status}`)
+                    pollSubscription.unsubscribe()
+                    // hide the progress bar
+                }
+            },
+            (error) => {
+                // build the dialog with message'n'everything
+                let retryAction = () => subscribePoll()
+                console.log(error)
+            },
+            () => {
+                // Hide the import dialog
+                console.log('completed')
+            }
+        )
+}
+
+subscribePoll()
+
+// setInterval(() => {
+//     console.log("Oi! Let's subscribe again!")
+//     subscribePoll()
+// }, 2000)
 
 // const apiObservableWrapper = () =>
 // fromFetch('https://dog.ceo/api/breeds/image/random')
